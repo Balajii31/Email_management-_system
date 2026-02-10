@@ -1,0 +1,50 @@
+name: AI Email Management CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+
+    - name: Run setup-node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Generate Prisma Client
+      run: pnpm exec prisma generate
+
+    - name: Run Lint
+      run: pnpm lint
+
+    - name: Run Unit & Integration Tests
+      run: pnpm test
+
+    - name: Build
+      run: pnpm build
+
+    - name: Install Playwright Browsers
+      run: pnpm exec playwright install --with-deps
+
+    - name: Run E2E Tests
+      run: pnpm test:e2e
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}

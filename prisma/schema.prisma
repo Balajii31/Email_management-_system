@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String?
+  avatar               String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  googleId             String?   @unique
+  googleAccessToken    String?
+  googleRefreshToken   String?
+  googleTokenExpiresAt DateTime?
+  googleLastSyncAt     DateTime?
+  googleSyncToken      String?
+  notificationsEnabled Boolean   @default(true)
+  syncFrequency        String    @default("hourly")
+  theme                String    @default("system")
+  emails               Email[]
+  syncJobs             SyncJob[]
+}
+
+model Email {
+  id              String             @id @default(cuid())
+  userId          String
+  googleMessageId String?            @unique
+  googleThreadId  String?
+  from            String
+  to              String[]
+  cc              String[]
+  bcc             String[]
+  subject         String
+  body            String
+  priority        String             @default("medium")
+  isRead          Boolean            @default(false)
+  isArchived      Boolean            @default(false)
+  isSpam          Boolean            @default(false)
+  isDraft         Boolean            @default(false)
+  folder          String             @default("inbox")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deletedAt       DateTime?
+  attachments     Attachment[]
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  summaries       EmailSummary?
+  translations    EmailTranslation[]
+
+  @@index([userId])
+  @@index([folder])
+  @@index([priority])
+  @@index([googleMessageId])
+}
+
+model EmailSummary {
+  id        String   @id @default(cuid())
+  emailId   String   @unique
+  content   String
+  createdAt DateTime @default(now())
+  email     Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
+}
+
+model EmailTranslation {
+  id             String   @id @default(cuid())
+  emailId        String
+  targetLanguage String
+  content        String
+  createdAt      DateTime @default(now())
+  email          Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  emailId   String
+  filename  String
+  url       String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+  email     Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+}
+
+model SyncJob {
+  id        String    @id @default(cuid())
+  userId    String
+  status    String    @default("PENDING")
+  progress  Int       @default(0)
+  error     String?
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
