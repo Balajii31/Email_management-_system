@@ -15,6 +15,7 @@ export const updateEmailSchema = z.object({
     isRead: z.boolean().optional(),
     labels: z.array(z.string()).optional(),
     isArchived: z.boolean().optional(),
+    isSpam: z.boolean().optional(),
     folder: z.string().optional(),
 });
 

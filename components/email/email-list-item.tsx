@@ -41,32 +41,21 @@ export function EmailListItem({ email, isSelected, onClick }: EmailListItemProps
         </time>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <h4 className={cn(
-          "text-sm truncate",
+          "text-sm line-clamp-1",
           !email.isRead ? "text-foreground font-semibold" : "text-muted-foreground"
         )}>
           {email.subject || '(No Subject)'}
         </h4>
-        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-          {email.body.substring(0, 150).replace(/<[^>]*>?/gm, '')}
+        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+          {email.body.substring(0, 300).replace(/<[^>]*>?/gm, '').trim()}
         </p>
       </div>
 
       <div className="flex items-center gap-2 mt-1">
-        {email.priority === 'high' && (
-          <Badge variant="destructive" className="text-[10px] h-4 px-1 uppercase font-bold">High</Badge>
-        )}
-        {email.priority === 'medium' && (
-          <Badge variant="secondary" className="text-[10px] h-4 px-1 uppercase font-bold bg-amber-500/10 text-amber-500 border-amber-500/20">Medium</Badge>
-        )}
         {email.isSpam && (
           <Badge variant="outline" className="text-[10px] h-4 px-1 uppercase font-bold text-orange-500 border-orange-500/20">Spam</Badge>
-        )}
-        {isSelected && (
-          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100">
-            {email.isRead ? <Mail className="h-3.5 w-3.5 text-muted-foreground" /> : <MailOpen className="h-3.5 w-3.5 text-muted-foreground" />}
-          </div>
         )}
       </div>
     </div>

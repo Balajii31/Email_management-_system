@@ -8,8 +8,21 @@ export async function fetcher<T>(url: string, options?: RequestInit): Promise<T>
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'An error occurred while fetching data');
+    let errorBody: any = null;
+
+    try {
+      errorBody = await response.json();
+    } catch {
+      // Ignore JSON parse errors and fall back to status-based messages.
+    }
+
+    const message =
+      errorBody?.message ||
+      errorBody?.error ||
+      response.statusText ||
+      'An error occurred while fetching data';
+
+    throw new Error(message);
   }
 
   return response.json();

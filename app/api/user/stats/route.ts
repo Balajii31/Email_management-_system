@@ -1,19 +1,19 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 
 export async function GET() {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) {
+        return errorResponse('Unauthorized', 401);
+    }
 
     try {
         const [total, unread, highPriority, spam] = await Promise.all([
-            prisma.email.count({ where: { userId: supabaseUser.id, deletedAt: null } }),
-            prisma.email.count({ where: { userId: supabaseUser.id, isRead: false, deletedAt: null } }),
-            prisma.email.count({ where: { userId: supabaseUser.id, priority: 'high', deletedAt: null } }),
-            prisma.email.count({ where: { userId: supabaseUser.id, isSpam: true, deletedAt: null } }),
+            prisma.email.count({ where: { userId: auth.mongoUser.id, deletedAt: null } }),
+            prisma.email.count({ where: { userId: auth.mongoUser.id, isRead: false, deletedAt: null } }),
+            prisma.email.count({ where: { userId: auth.mongoUser.id, priority: 'high', deletedAt: null } }),
+            prisma.email.count({ where: { userId: auth.mongoUser.id, isSpam: true, deletedAt: null } }),
         ]);
 
         const stats = {

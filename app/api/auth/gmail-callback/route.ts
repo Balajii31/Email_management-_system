@@ -9,6 +9,38 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_REDIRECT_URI
 );
 
+// Helper function to retry database operations (for Neon DB wake-up)
+async function retryDatabaseOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries = 3,
+    delayMs = 2000
+): Promise<T> {
+    let lastError: Error | undefined;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (error: any) {
+            lastError = error;
+            
+            // Check if it's a connection error (Neon DB sleeping)
+            if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+                console.log(`Database connection attempt ${attempt}/${maxRetries} failed, retrying...`);
+                
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+            }
+            
+            // If it's not a connection error, throw immediately
+            throw error;
+        }
+    }
+    
+    throw lastError || new Error('Database operation failed after retries');
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
@@ -40,29 +72,39 @@ export async function GET(request: Request) {
             throw new Error('Failed to retrieve user email from Google');
         }
 
-        await prisma.user.upsert({
-            where: { id: userId },
-            update: {
-                googleAccessToken: encryptedAccessToken,
-                ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
-                googleTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-                name: userInfo.name,
-                avatar: userInfo.picture,
-            },
-            create: {
-                id: userId,
-                email: userInfo.email,
-                name: userInfo.name,
-                avatar: userInfo.picture,
-                googleAccessToken: encryptedAccessToken,
-                ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
-                googleTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-            },
+        // Retry database operation in case database is sleeping
+        await retryDatabaseOperation(async () => {
+            return await prisma.user.upsert({
+                where: { email: userInfo.email! },
+                update: {
+                    googleAccessToken: encryptedAccessToken,
+                    ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
+                    googleTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+                    name: userInfo.name,
+                    avatar: userInfo.picture,
+                },
+                create: {
+                    email: userInfo.email!,
+                    name: userInfo.name,
+                    avatar: userInfo.picture,
+                    googleAccessToken: encryptedAccessToken,
+                    ...(encryptedRefreshToken && { googleRefreshToken: encryptedRefreshToken }),
+                    googleTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+                },
+            });
         });
 
         return NextResponse.redirect(new URL('/inbox', request.url));
     } catch (error: any) {
         console.error('OAuth callback error:', error);
+        
+        // Special handling for database connection errors
+        if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+            return NextResponse.redirect(
+                new URL('/login?error=database_unavailable&message=' + encodeURIComponent('Database is waking up. Please wait 30 seconds and try connecting Gmail again.'), request.url)
+            );
+        }
+        
         return NextResponse.json({ 
             error: 'Failed to exchange token',
             details: error.message,

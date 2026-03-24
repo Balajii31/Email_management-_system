@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase';
 import { prisma } from '@/lib/prisma';
-import { getGmailClient, fetchEmails, getEmailContent } from '@/lib/gmail-client';
+import { getGmailClient, fetchEmails, getEmailContent, moveToSpam, addLabel } from '@/lib/gmail-client';
 import { extractFeatures, detectSpam } from '@/lib/spam-detector';
 import { classifyPriority } from '@/lib/priority-classifier';
+import { classifyEmailCategory } from '@/lib/category-classifier';
+import { getBertClassifier } from '@/lib/bert-classifier';
 import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
 
 export async function POST() {
@@ -20,6 +22,19 @@ export async function POST() {
         });
 
         if (!user) return errorResponse('User not found', 404);
+
+        // Fail fast if Gmail credentials are invalid to avoid silent background failures.
+        try {
+            await getGmailClient(user.id);
+            await fetchEmails(user.id, 1);
+        } catch (error: any) {
+            const rawMessage = error?.message || 'Google authentication failed';
+            const isScopeError = rawMessage.toLowerCase().includes('insufficient authentication scopes');
+            const message = isScopeError
+                ? 'Google token is missing required Gmail permissions. Please reconnect Gmail and grant all requested scopes.'
+                : rawMessage;
+            return errorResponse(message, 400);
+        }
 
         // Create a SyncJob record
         const job = await prisma.syncJob.create({
@@ -47,6 +62,13 @@ async function runSync(userId: string, jobId: string) {
         const { messages } = await fetchEmails(userId);
         const total = messages.length;
         let syncedCount = 0;
+        let spamMovedCount = 0;
+
+        // Check if BERT ML server is available
+        const bertClient = getBertClassifier();
+        const isBertAvailable = await bertClient.checkHealth();
+        
+        console.log(`🤖 BERT ML Server: ${isBertAvailable ? '✅ Available' : '⚠️ Unavailable (using fallback)'}`);
 
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
@@ -73,16 +95,70 @@ async function runSync(userId: string, jobId: string) {
                 }
                 body = Buffer.from(body, 'base64').toString('utf-8');
 
-                // AI/ML Pipeline
-                const features = extractFeatures(from, subject, body);
-                const spamResult = detectSpam(features);
-                const priorityResult = classifyPriority(from, subject, body);
+                // 🤖 AI/ML Pipeline with BERT
+                let isSpam = false;
+                let priority = 'medium';
+                let category = 'general';
+                let confidence = 0;
+                let usedBert = false;
 
-                const isSpam = spamResult.isSpam || details.labelIds?.includes('SPAM');
+                if (isBertAvailable) {
+                    // Use BERT for classification
+                    const bertPrediction = await bertClient.classify(subject, body);
+                    
+                    if (bertPrediction) {
+                        isSpam = bertPrediction.is_spam;
+                        priority = bertPrediction.priority.toLowerCase();
+                        category = bertPrediction.category;
+                        confidence = bertPrediction.spam_confidence;
+                        usedBert = true;
+                        
+                        console.log(`📧 Email "${subject.substring(0, 50)}..." classified by BERT:`, {
+                            spam: isSpam,
+                            priority,
+                            category,
+                            confidence
+                        });
+                    }
+                }
+
+                // Fallback to simple classifiers if BERT failed or unavailable
+                if (!usedBert) {
+                    const features = extractFeatures(from, subject, body);
+                    const spamResult = detectSpam(features);
+                    const priorityResult = classifyPriority(from, subject, body);
+                    
+                    isSpam = spamResult.isSpam;
+                    priority = priorityResult.priority.toLowerCase();
+                    category = classifyEmailCategory(from, subject, body);
+                    confidence = spamResult.confidence;
+                }
+
+                // Also check Gmail's existing spam label
+                const alreadySpam = details.labelIds?.includes('SPAM');
+                isSpam = isSpam || alreadySpam;
+
+                // Determine folder
                 const folder = isSpam ? 'spam' :
                     details.labelIds?.includes('SENT') ? 'sent' :
                         details.labelIds?.includes('DRAFT') ? 'drafts' : 'inbox';
 
+                // 🎯 Take action on spam emails
+                if (isSpam && !alreadySpam && msg.id) {
+                    // Move to spam in Gmail
+                    const moveResult = await moveToSpam(userId, msg.id);
+                    if (moveResult.success) {
+                        spamMovedCount++;
+                        console.log(`🗑️ Moved email to spam: ${subject.substring(0, 50)}...`);
+                    }
+                }
+
+                // 🏷️ Add priority label in Gmail for non-spam emails
+                if (!isSpam && priority === 'high' && msg.id) {
+                    await addLabel(userId, msg.id, 'Priority/High');
+                }
+
+                // Save to database
                 await prisma.email.create({
                     data: {
                         userId,
@@ -92,7 +168,8 @@ async function runSync(userId: string, jobId: string) {
                         to,
                         subject,
                         body,
-                        priority: priorityResult.priority.toLowerCase(),
+                        priority,
+                        category,
                         isRead: !details.labelIds?.includes('UNREAD'),
                         isSpam,
                         folder,
@@ -117,7 +194,9 @@ async function runSync(userId: string, jobId: string) {
             data: {
                 status: 'COMPLETED',
                 progress: 100,
-                endedAt: new Date()
+                endedAt: new Date(),
+                totalProcessed: total,
+                totalSynced: syncedCount,
             }
         });
 
@@ -126,7 +205,10 @@ async function runSync(userId: string, jobId: string) {
             data: { googleLastSyncAt: new Date() }
         });
 
+        console.log(`✅ Sync completed: ${syncedCount} new emails, ${spamMovedCount} moved to spam`);
+
     } catch (error: any) {
+        console.error('❌ Sync failed:', error);
         await prisma.syncJob.update({
             where: { id: jobId },
             data: {

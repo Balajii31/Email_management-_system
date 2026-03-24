@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { prisma } from './prisma';
+import { createClient } from './supabase';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export type ApiResponse<T = any> = {
     data?: T;
@@ -52,4 +55,35 @@ export function handleApiError(error: any) {
     }
 
     return errorResponse(error.message || 'Internal server error', 500);
+}
+
+/**
+ * Get MongoDB user from Supabase user (handles MongoDB ObjectId vs Supabase UUID)
+ * @returns MongoDB user or null if not found
+ */
+export async function getMongoUserFromSupabase(supabaseUser: SupabaseUser) {
+    if (!supabaseUser.email) {
+        return null;
+    }
+    
+    return await prisma.user.findUnique({
+        where: { email: supabaseUser.email }
+    });
+}
+
+/**
+ * Get authenticated user (Supabase + MongoDB)
+ * @returns { supabaseUser, mongoUser } or null if unauthorized
+ */
+export async function getAuthenticatedUser() {
+    const supabase = await createClient();
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+
+    if (!supabaseUser) {
+        return null;
+    }
+
+    const mongoUser = await getMongoUserFromSupabase(supabaseUser);
+    
+    return { supabaseUser, mongoUser };
 }

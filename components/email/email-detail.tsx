@@ -10,12 +10,15 @@ import {
   User,
   Clock,
   Printer,
-  ChevronDown
+  ChevronDown,
+  Reply,
+  ReplyAll
 } from 'lucide-react';
 import { EmailSummary } from './email-summary';
 import { EmailActions } from './email-actions';
+import { ComposeDialog } from './compose-dialog';
 import DOMPurify from 'dompurify';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface EmailDetailProps {
@@ -25,6 +28,9 @@ interface EmailDetailProps {
 }
 
 export default function EmailDetail({ email, onUpdate, onClose }: EmailDetailProps) {
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyAll, setReplyAll] = useState(false);
+  
   const sanitizedBody = useMemo(() => {
     return typeof window !== 'undefined' ? DOMPurify.sanitize(email.body) : email.body;
   }, [email.body]);
@@ -32,6 +38,16 @@ export default function EmailDetail({ email, onUpdate, onClose }: EmailDetailPro
   const date = new Date(email.createdAt);
   const fromName = email.from.split('<')[0].replace(/"/g, '').trim() || email.from;
   const fromEmail = email.from.includes('<') ? email.from.match(/<([^>]+)>/)?.[1] : email.from;
+
+  const handleReply = () => {
+    setReplyAll(false);
+    setReplyOpen(true);
+  };
+
+  const handleReplyAll = () => {
+    setReplyAll(true);
+    setReplyOpen(true);
+  };
 
   return (
     <div className="flex h-full flex-col bg-background animate-in fade-in slide-in-from-right-4 duration-300">
@@ -89,6 +105,28 @@ export default function EmailDetail({ email, onUpdate, onClose }: EmailDetailPro
             initialSummary={email.summaries?.[0]?.content} 
           />
 
+          {/* Reply Buttons */}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleReply}
+              className="gap-2"
+            >
+              <Reply className="h-4 w-4" />
+              Reply
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleReplyAll}
+              className="gap-2"
+            >
+              <ReplyAll className="h-4 w-4" />
+              Reply All
+            </Button>
+          </div>
+
           {/* Body Content */}
           <div className="prose prose-sm max-w-none dark:prose-invert">
             <div 
@@ -123,6 +161,14 @@ export default function EmailDetail({ email, onUpdate, onClose }: EmailDetailPro
           )}
         </div>
       </div>
+
+      <ComposeDialog 
+        open={replyOpen}
+        onOpenChange={setReplyOpen}
+        defaultTo={replyAll ? [fromEmail, ...email.to, ...(email.cc || [])].filter(e => e !== fromEmail).join(', ') : fromEmail || ''}
+        defaultSubject={email.subject?.startsWith('Re:') ? email.subject : `Re: ${email.subject}`}
+        defaultBody={`\n\n\nOn ${format(date, 'MMM d, yyyy \'at\' h:mm a')}, ${fromName} wrote:\n${email.body.split('\n').map(line => '> ' + line).join('\n')}`}
+      />
     </div>
   );
 }

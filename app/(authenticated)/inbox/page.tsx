@@ -11,10 +11,27 @@ import { useSearchParams } from 'next/navigation';
 export default function InboxPage() {
   const searchParams = useSearchParams();
   const folder = searchParams.get('folder') || 'inbox';
+  const search = searchParams.get('search') || undefined;
   const { selectedEmailId, setSelectedEmailId } = useSelection();
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
   
-  const { emails, isLoading, mutate: mutateList } = useEmails({ folder });
+  const { emails, isLoading, mutate: mutateList } = useEmails({ folder, search });
   const { email, isLoading: isLoadingDetail, mutate: mutateDetail } = useEmailDetail(selectedEmailId);
+
+  // Auto-refresh emails every 5 minutes
+  useEffect(() => {
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    
+    const autoRefresh = async () => {
+      setIsAutoSyncing(true);
+      await mutateList();
+      setTimeout(() => setIsAutoSyncing(false), 1000);
+    };
+
+    const interval = setInterval(autoRefresh, AUTO_REFRESH_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [mutateList]);
 
   // Keyboard Navigation
   useEffect(() => {
@@ -53,7 +70,18 @@ export default function InboxPage() {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex h-full w-full overflow-hidden relative">
+      {/* Auto-sync indicator */}
+      {isAutoSyncing && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-primary/10 border-b border-primary/20 px-4 py-1.5 flex items-center justify-center gap-2 text-xs text-primary">
+          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Refreshing emails...
+        </div>
+      )}
+      
       {/* Email List Section */}
       <div className={`w-full lg:w-[400px] xl:w-[450px] flex-shrink-0 flex flex-col border-r border-border bg-card ${selectedEmailId ? 'hidden lg:flex' : 'flex'}`}>
         <EmailList 
@@ -61,6 +89,7 @@ export default function InboxPage() {
           selectedEmailId={selectedEmailId || undefined} 
           onEmailSelect={(email) => setSelectedEmailId(email.id)}
           isLoading={isLoading}
+          folder={folder}
         />
       </div>
 

@@ -1,14 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 import { extractFeatures, detectSpam } from '@/lib/spam-detector';
 import { classifyPriority } from '@/lib/priority-classifier';
 
 export async function POST(request: Request) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     try {
         const { emailIds } = await request.json();
@@ -17,7 +15,7 @@ export async function POST(request: Request) {
         const emails = await prisma.email.findMany({
             where: {
                 id: { in: emailIds },
-                userId: supabaseUser.id
+                userId: auth.mongoUser.id
             }
         });
 

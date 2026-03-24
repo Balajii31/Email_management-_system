@@ -1,22 +1,20 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 import { updateEmailSchema } from '@/lib/validation-schemas';
 
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     const { id } = await params;
 
     try {
         const email = await prisma.email.findFirst({
-            where: { id, userId: supabaseUser.id, deletedAt: null },
+            where: { id, userId: auth.mongoUser.id, deletedAt: null },
             include: {
                 attachments: true,
                 summaries: true,
@@ -45,10 +43,9 @@ export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     const { id } = await params;
 
@@ -57,7 +54,7 @@ export async function PATCH(
         const data = updateEmailSchema.parse(body);
 
         const email = await prisma.email.findFirst({
-            where: { id, userId: supabaseUser.id, deletedAt: null }
+            where: { id, userId: auth.mongoUser.id, deletedAt: null }
         });
 
         if (!email) return errorResponse('Email not found', 404);
@@ -77,16 +74,15 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     const { id } = await params;
 
     try {
         const email = await prisma.email.findFirst({
-            where: { id, userId: supabaseUser.id }
+            where: { id, userId: auth.mongoUser.id }
         });
 
         if (!email) return errorResponse('Email not found', 404);

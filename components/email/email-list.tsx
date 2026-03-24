@@ -1,10 +1,8 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Email, Priority } from '@/lib/types';
 import { EmailListItem } from './email-list-item';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface EmailListProps {
@@ -12,6 +10,7 @@ interface EmailListProps {
   selectedEmailId?: string;
   onEmailSelect: (email: Email) => void;
   isLoading?: boolean;
+  folder?: string;
 }
 
 const PRIORITY_ORDER: Priority[] = ['high', 'medium', 'low'];
@@ -20,11 +19,16 @@ export default function EmailList({
   emails, 
   selectedEmailId, 
   onEmailSelect,
-  isLoading 
+  isLoading,
+  folder = 'inbox'
 }: EmailListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  // Only group by priority for inbox folder, not for spam or category folders
+  const shouldGroupByPriority = folder === 'inbox';
 
   const groupedEmails = useMemo(() => {
+    if (!shouldGroupByPriority) {
+      return [];
+    }
     const high = emails.filter(e => e.priority === 'high');
     const medium = emails.filter(e => e.priority === 'medium');
     const low = emails.filter(e => e.priority === 'low');
@@ -34,25 +38,7 @@ export default function EmailList({
       { priority: 'medium' as const, label: 'Medium Priority', emails: medium },
       { priority: 'low' as const, label: 'Low Priority', emails: low },
     ].filter(group => group.emails.length > 0);
-  }, [emails]);
-
-  const flatList = useMemo(() => {
-    const items: ({ type: 'header'; label: string } | { type: 'email'; email: Email })[] = [];
-    groupedEmails.forEach(group => {
-      items.push({ type: 'header', label: group.label });
-      group.emails.forEach(email => {
-        items.push({ type: 'email', email });
-      });
-    });
-    return items;
-  }, [groupedEmails]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: flatList.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (index) => flatList[index].type === 'header' ? 32 : 120,
-    overscan: 5,
-  });
+  }, [emails, shouldGroupByPriority]);
 
   if (isLoading && emails.length === 0) {
     return (
@@ -81,48 +67,40 @@ export default function EmailList({
     );
   }
 
-  return (
-    <div 
-      ref={parentRef} 
-      className="h-[calc(100vh-64px)] overflow-y-auto w-full border-r border-border custom-scrollbar"
-    >
-      <div
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-          const item = flatList[virtualItem.index];
-
-          return (
-            <div
-              key={virtualItem.key}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              {item.type === 'header' ? (
-                <div className="flex h-8 items-center bg-muted/50 px-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
-                  {item.label}
-                </div>
-              ) : (
-                <EmailListItem
-                  email={item.email}
-                  isSelected={selectedEmailId === item.email.id}
-                  onClick={() => onEmailSelect(item.email)}
-                />
-              )}
-            </div>
-          );
-        })}
+  // For spam and category folders, use simple rendering without priority groups
+  if (!shouldGroupByPriority) {
+    return (
+      <div className="h-[calc(100vh-64px)] overflow-y-auto w-full border-r border-border">
+        {emails.map((email) => (
+          <EmailListItem
+            key={email.id}
+            email={email}
+            isSelected={selectedEmailId === email.id}
+            onClick={() => onEmailSelect(email)}
+          />
+        ))}
       </div>
+    );
+  }
+
+  // For inbox, show emails grouped by priority
+  return (
+    <div className="h-[calc(100vh-64px)] overflow-y-auto w-full border-r border-border">
+      {groupedEmails.map((group) => (
+        <div key={group.priority}>
+          <div className="flex h-8 items-center bg-muted/50 px-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border sticky top-0 z-10">
+            {group.label}
+          </div>
+          {group.emails.map((email) => (
+            <EmailListItem
+              key={email.id}
+              email={email}
+              isSelected={selectedEmailId === email.id}
+              onClick={() => onEmailSelect(email)}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

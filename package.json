@@ -10,7 +10,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "email:processor": "npx tsx scripts/email-processor.ts",
+    "email:test": "npx tsx scripts/test-system.ts",
+    "ml:serve": "cd ml_pipeline && python serve.py",
+    "db:migrate": "npx prisma generate && npx prisma db push",
+    "setup": "npm install && npx prisma generate && npx prisma db push"
   },
   "prisma": {
     "seed": "node --loader ts-node/esm ./prisma/seed.ts"

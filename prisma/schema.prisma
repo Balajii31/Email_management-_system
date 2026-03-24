@@ -3,13 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id                   String    @id @default(cuid())
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
   email                String    @unique
   name                 String?
   avatar               String?
@@ -29,8 +28,8 @@ model User {
 }
 
 model Email {
-  id              String             @id @default(cuid())
-  userId          String
+  id              String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String             @db.ObjectId
   googleMessageId String?            @unique
   googleThreadId  String?
   from            String
@@ -40,6 +39,7 @@ model Email {
   subject         String
   body            String
   priority        String             @default("medium")
+  category        String             @default("inbox")
   isRead          Boolean            @default(false)
   isArchived      Boolean            @default(false)
   isSpam          Boolean            @default(false)
@@ -56,20 +56,20 @@ model Email {
   @@index([userId])
   @@index([folder])
   @@index([priority])
-  @@index([googleMessageId])
+  @@index([category])
 }
 
 model EmailSummary {
-  id        String   @id @default(cuid())
-  emailId   String   @unique
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  emailId   String   @unique @db.ObjectId
   content   String
   createdAt DateTime @default(now())
   email     Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
 }
 
 model EmailTranslation {
-  id             String   @id @default(cuid())
-  emailId        String
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  emailId        String   @db.ObjectId
   targetLanguage String
   content        String
   createdAt      DateTime @default(now())
@@ -79,8 +79,8 @@ model EmailTranslation {
 }
 
 model Attachment {
-  id        String   @id @default(cuid())
-  emailId   String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  emailId   String   @db.ObjectId
   filename  String
   url       String
   size      Int
@@ -92,15 +92,17 @@ model Attachment {
 }
 
 model SyncJob {
-  id        String    @id @default(cuid())
-  userId    String
-  status    String    @default("PENDING")
-  progress  Int       @default(0)
-  error     String?
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String    @db.ObjectId
+  status         String    @default("PENDING")
+  progress       Int       @default(0)
+  totalProcessed Int?
+  totalSynced    Int?
+  error          String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

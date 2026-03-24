@@ -1,0 +1,239 @@
+# Email Processing Flow - Visual Guide
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USER ACTIONS                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+    1. Sign in with Google
+           ↓
+    2. Connect Gmail (one-time)
+           ↓
+    3. Click 🔄 Sync button
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      EMAIL FETCHING                                 │
+└─────────────────────────────────────────────────────────────────────┘
+
+    POST /api/emails/sync
+           ↓
+    Gmail API: Fetch emails
+           ↓
+    [Email 1, Email 2, Email 3, ...]
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                       FOR EACH EMAIL                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+    Extract Data:
+    ┌─────────────────────────┐
+    │ • From: sender@mail.com │
+    │ • Subject: "..."        │
+    │ • Body: "..."           │
+    │ • Date, Labels, etc.    │
+    └─────────────────────────┘
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BERT AI CLASSIFICATION                           │
+│                  (http://localhost:8000)                            │
+└─────────────────────────────────────────────────────────────────────┘
+
+    Send to BERT ML Server:
+    POST /predict
+    {
+      "text": "Subject + Body",
+      "subject": "..."
+    }
+           ↓
+    BERT Analyzes:
+    ┌─────────────────────────────────────┐
+    │ 🤖 Spam Detection:                  │
+    │    is_spam: true/false              │
+    │    confidence: 0.98                 │
+    │                                     │
+    │ 🎯 Priority Classification:         │
+    │    priority: "High"                 │
+    │    score: 3                         │
+    │                                     │
+    │ 📁 Category Classification:         │
+    │    category: "work"                 │
+    └─────────────────────────────────────┘
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DECISION & ACTION                              │
+└─────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────┬─────────────────────────────┐
+    │   IS SPAM?      │   ACTION                    │
+    ├─────────────────┼─────────────────────────────┤
+    │   ✅ YES         │ 1. Move to Gmail spam       │
+    │   (confidence   │ 2. Mark spam in DB          │
+    │    > 0.5)       │ 3. Remove from inbox        │
+    └─────────────────┴─────────────────────────────┘
+           │
+           NO (Not spam)
+           ↓
+    ┌─────────────────┬─────────────────────────────┐
+    │   PRIORITY?     │   ACTION                    │
+    ├─────────────────┼─────────────────────────────┤
+    │   🔴 HIGH        │ 1. Add Gmail label          │
+    │                 │ 2. Save priority to DB      │
+    │                 │ 3. Show in High section     │
+    ├─────────────────┼─────────────────────────────┤
+    │   🟡 MEDIUM      │ 1. Save to DB               │
+    │                 │ 2. Show in Medium section   │
+    ├─────────────────┼─────────────────────────────┤
+    │   🟢 LOW         │ 1. Save to DB               │
+    │                 │ 2. Show in Low section      │
+    └─────────────────┴─────────────────────────────┘
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     SAVE TO DATABASE                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+    PostgreSQL (Neon):
+    ┌──────────────────────────────────┐
+    │ Email Table:                     │
+    │  • id, userId, googleMessageId   │
+    │  • from, to, subject, body       │
+    │  • priority: "high"              │
+    │  • isSpam: false                 │
+    │  • folder: "inbox"               │
+    │  • category: "work"              │
+    │  • createdAt, updatedAt          │
+    └──────────────────────────────────┘
+           ↓
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                      UPDATE UI                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+    React UI refreshes:
+    
+    INBOX VIEW:
+    ┌────────────────────────────────────┐
+    │  📬 High Priority (3 emails) 🔴   │
+    │  ├─ [Boss] Urgent: Project due    │
+    │  ├─ [Client] Meeting tomorrow     │
+    │  └─ [HR] Benefits update          │
+    │                                    │
+    │  📬 Medium Priority (12 emails) 🟡│
+    │  ├─ [Team] Weekly sync notes      │
+    │  ├─ [Newsletter] Tech updates     │
+    │  └─ ...                           │
+    │                                    │
+    │  📬 Low Priority (5 emails) 🟢    │
+    │  ├─ [Social] LinkedIn update      │
+    │  └─ ...                           │
+    └────────────────────────────────────┘
+    
+    SPAM FOLDER:
+    ┌────────────────────────────────────┐
+    │  🗑️ Spam (3 emails filtered)      │
+    │  ├─ [Scam] WIN FREE PRIZE!!!      │
+    │  ├─ [Phish] Account verification  │
+    │  └─ [Spam] Buy cheap meds         │
+    └────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════
+
+BACKGROUND PROCESSOR (Optional - Automatic Mode):
+
+    npm run email:processor
+           ↓
+    ┌─────────────────────────────────┐
+    │  Every 5 minutes (configurable) │
+    │  ↓                              │
+    │  Fetch new emails               │
+    │  ↓                              │
+    │  Classify with BERT             │
+    │  ↓                              │
+    │  Move spam & label priority     │
+    │  ↓                              │
+    │  Save to database               │
+    │  ↓                              │
+    │  Repeat...                      │
+    └─────────────────────────────────┘
+
+    Benefits:
+    ✅ No manual clicking needed
+    ✅ Continuous spam protection
+    ✅ Always up-to-date inbox
+    ✅ Runs in background
+
+═══════════════════════════════════════════════════════════════════════
+
+EXAMPLE: Real Email Processing
+
+INPUT EMAIL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+From: scammer@fake-bank.com
+Subject: URGENT!!! Your account suspended
+Body: Click here NOW to verify or account will be deleted!
+      http://fake-link.com/verify
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BERT CLASSIFICATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "is_spam": true,
+  "spam_confidence": 0.99,
+  "priority": "Low",
+  "category": "spam"
+}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ACTIONS TAKEN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Moved to Gmail spam folder
+✅ Marked as spam in database
+✅ Excluded from inbox view
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RESULT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 User never sees this email in inbox!
+🛡️ Protected from phishing/scam
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+EXAMPLE 2: Legitimate High Priority Email
+
+INPUT EMAIL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+From: boss@company.com
+Subject: Project Review - Need feedback by EOD
+Body: Hi, can you review the attached proposal and 
+      send feedback by end of day? Thanks!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BERT CLASSIFICATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{
+  "is_spam": false,
+  "spam_confidence": 0.02,
+  "priority": "High",
+  "priority_score": 3,
+  "category": "work"
+}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ACTIONS TAKEN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Added "Priority/High" label in Gmail
+✅ Saved with priority="high" in database
+✅ Shown in High Priority section
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RESULT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 User sees this at top of inbox with 🔴 badge
+⚡ Knows it needs immediate attention
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```

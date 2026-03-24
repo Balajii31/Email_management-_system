@@ -1,17 +1,15 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 import { userPreferencesSchema } from '@/lib/validation-schemas';
 
 export async function GET() {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: supabaseUser.id },
+            where: { id: auth.mongoUser.id },
             select: {
                 syncFrequency: true,
                 notificationsEnabled: true,
@@ -26,17 +24,16 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     try {
         const body = await request.json();
         const data = userPreferencesSchema.parse(body);
 
         const updatedUser = await prisma.user.update({
-            where: { id: supabaseUser.id },
+            where: { id: auth.mongoUser.id },
             data,
         });
 

@@ -27,7 +27,8 @@ export async function GET() {
     const url = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: scopes,
-        prompt: 'consent',
+        prompt: 'consent select_account',
+        include_granted_scopes: false,
         state: user.id, // Pass user ID to associate token on callback
     });
 

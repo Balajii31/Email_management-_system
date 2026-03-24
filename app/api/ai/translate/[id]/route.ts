@@ -1,16 +1,14 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 import { translateToTamil } from '@/lib/ai-services';
 
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     const { id } = await params; // This is summaryId as per requested structure
 
@@ -23,7 +21,7 @@ export async function POST(
             include: { email: true }
         });
 
-        if (!summary || summary.email.userId !== supabaseUser.id) {
+        if (!summary || summary.email.userId !== auth.mongoUser.id) {
             return errorResponse('Summary not found', 404);
         }
 

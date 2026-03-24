@@ -1,14 +1,12 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 import { emailQuerySchema } from '@/lib/validation-schemas';
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser();
+  const auth = await getAuthenticatedUser();
 
-  if (authError || !supabaseUser) {
-    return successResponse({ error: 'Unauthorized' }, undefined); // We use handleApiError for actual errors, but 401 is specific
+  if (!auth || !auth.mongoUser) {
+    return errorResponse('Unauthorized', 401);
   }
 
   try {
@@ -19,13 +17,35 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
 
     const where: any = {
-      userId: supabaseUser.id,
-      deletedAt: null,
+      userId: auth.mongoUser.id,
+      // MongoDB Prisma has issues with null filters - commenting out for now
+      // deletedAt: null,
     };
 
     if (priority) where.priority = priority;
     if (isSpam !== undefined) where.isSpam = isSpam;
-    if (folder) where.folder = folder;
+    
+    // Handle folder filters
+    if (folder) {
+      // Category folders (using category field for categorization)
+      const categoryFolders = ['social', 'jobs', 'events', 'personal', 'updates', 'promotional'];
+      
+      if (categoryFolders.includes(folder)) {
+        // Virtual category folders - filter by category field
+        where.category = folder;
+        where.isSpam = false; // Don't show spam in categories
+      } else if (folder === 'spam') {
+        // Spam folder - show emails marked as spam
+        where.isSpam = true;
+      } else {
+        // Regular folders (inbox, sent, drafts, trash)
+        where.folder = folder;
+        // For inbox, also exclude spam
+        if (folder === 'inbox') {
+          where.isSpam = false;
+        }
+      }
+    }
 
     if (startDate || endDate) {
       where.createdAt = {};

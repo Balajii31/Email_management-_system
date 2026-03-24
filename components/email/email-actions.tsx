@@ -57,6 +57,16 @@ export function EmailActions({ emailId, isRead, onUpdate }: EmailActionsProps) {
     }
   };
 
+  const handleMarkSpam = async () => {
+    try {
+      await apiClient.patch(`/api/emails/${emailId}`, { isSpam: true, folder: 'spam' });
+      toast.success('Email marked as spam');
+      if (onUpdate) onUpdate();
+    } catch (error: any) {
+      toast.error('Failed to mark as spam');
+    }
+  };
+
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="icon" onClick={handleToggleRead} title={isRead ? "Mark as unread" : "Mark as read"}>
@@ -85,7 +95,7 @@ export function EmailActions({ emailId, isRead, onUpdate }: EmailActionsProps) {
           <DropdownMenuItem className="gap-2">
             <Star className="h-4 w-4" /> Mark as favorite
           </DropdownMenuItem>
-          <DropdownMenuItem className="gap-2 text-destructive">
+          <DropdownMenuItem className="gap-2 text-destructive" onClick={handleMarkSpam}>
             <Trash2 className="h-4 w-4" /> Report spam
           </DropdownMenuItem>
         </DropdownMenuContent>

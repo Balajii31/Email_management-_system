@@ -22,7 +22,7 @@ export async function GET(request: Request) {
             console.log('User authenticated:', supabaseUser.email)
             // Create user in Prisma if not exists
             try {
-                await prisma.user.upsert({
+                const user = await prisma.user.upsert({
                     where: { email: supabaseUser.email! },
                     update: {
                         name: supabaseUser.user_metadata.full_name,
@@ -32,10 +32,10 @@ export async function GET(request: Request) {
                         email: supabaseUser.email!,
                         name: supabaseUser.user_metadata.full_name,
                         avatar: supabaseUser.user_metadata.avatar_url,
-                        id: supabaseUser.id, // Use Supabase user ID as primary key
+                        // Let MongoDB auto-generate ObjectId, don't use Supabase UUID
                     },
                 })
-                console.log('User synced to Prisma')
+                console.log('User synced to MongoDB:', user.email)
             } catch (err) {
                 console.error('Prisma upsert error:', err)
             }

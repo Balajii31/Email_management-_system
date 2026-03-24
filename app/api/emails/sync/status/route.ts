@@ -1,12 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase';
-import { handleApiError, successResponse, errorResponse } from '@/lib/api-helpers';
+import { handleApiError, successResponse, errorResponse, getAuthenticatedUser } from '@/lib/api-helpers';
 
 export async function GET(request: Request) {
-    const supabase = await createClient();
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedUser();
 
-    if (!supabaseUser) return errorResponse('Unauthorized', 401);
+    if (!auth || !auth.mongoUser) return errorResponse('Unauthorized', 401);
 
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get('jobId');
@@ -15,7 +13,7 @@ export async function GET(request: Request) {
 
     try {
         const job = await prisma.syncJob.findFirst({
-            where: { id: jobId, userId: supabaseUser.id }
+            where: { id: jobId, userId: auth.mongoUser.id }
         });
 
         if (!job) return errorResponse('Sync job not found', 404);
