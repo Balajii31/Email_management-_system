@@ -1,3 +1,4 @@
+
 export type EmailCategory = 
   | 'social'           // Social networks, forums, messaging
   | 'transactional'    // Receipts, confirmations, shipping
@@ -22,40 +23,44 @@ const CATEGORY_KEYWORDS: CategoryKeywords = {
   social: [
     'facebook', 'twitter', 'linkedin', 'instagram', 'snapchat', 'tiktok',
     'social network', 'friend request', 'follower', 'commented', 'liked',
-    'mentioned you', 'tagged you', 'connection request', 'message you'
+    'mentioned you', 'tagged you', 'connection request', 'message you',
+    'reddit', 'discord', 'slack', 'notification from'
   ],
   transactional: [
     'receipt', 'invoice', 'payment', 'order confirmation', 'shipping',
     'delivered', 'tracking', 'transaction', 'purchase', 'order #',
     'card ending', 'payment received', 'refund', 'subscription',
-    'billing', 'statement', 'checkout', 'your order'
+    'billing', 'statement', 'checkout', 'your order', 'bill'
   ],
   jobs: [
     'job', 'career', 'hiring', 'opportunity', 'position', 'apply',
     'interview', 'resume', 'cv', 'recruiter', 'employment',
     'job alert', 'candidate', 'application', 'workplace', 'offer letter',
-    'software engineer', 'developer', 'full stack', 'vacancy'
+    'software engineer', 'developer', 'full stack', 'vacancy', 'talent'
   ],
   events: [
     'event', 'invitation', 'invite', 'calendar', 'meeting', 'rsvp',
     'schedule', 'webinar', 'conference', 'seminar', 'workshop',
-    'join us', 'save the date', 'upcoming', 'register now', 'attendance'
+    'join us', 'save the date', 'upcoming', 'register now', 'attendance',
+    'zoom', 'google meet', 'microsoft teams', 'location'
   ],
   personal: [
     'from:', 'dear', 'hi', 'hello', 'regards', 'best wishes',
-    'yours', 'sincerely', 'hope you', 'how are you', 'wanted to reach out'
+    'yours', 'sincerely', 'hope you', 'how are you', 'wanted to reach out',
+    'thought you might like', 'quick question'
   ],
   updates: [
     'update', 'notification', 'alert', 'reminder', 'news',
     'announcement', 'release', 'version', 'security alert',
     'password reset', 'verify', 'confirm your', 'action required',
-    'account activity', 'new feature', 'changelog'
+    'account activity', 'new feature', 'changelog', 'policy update'
   ],
   promotional: [
     'sale', 'discount', 'offer', 'deal', 'coupon', 'promo',
     'limited time', 'exclusive', 'save', 'free shipping',
     'unsubscribe', 'newsletter', 'weekly', 'special offer',
-    '% off', 'buy now', 'shop now', 'marketing', 'advertisement'
+    '% off', 'buy now', 'shop now', 'marketing', 'advertisement',
+    'sponsored', 'exclusive deal', 'best price', 'savings'
   ]
 };
 
@@ -66,6 +71,9 @@ const SENDER_PATTERNS: Record<string, EmailCategory> = {
   'twitter.com': 'social',
   'linkedin.com': 'social',
   'instagram.com': 'social',
+  'reddit.com': 'social',
+  'discord.com': 'social',
+  'github.com/notifications': 'social',
   
   // Transactional
   'amazon.com': 'transactional',
@@ -74,18 +82,24 @@ const SENDER_PATTERNS: Record<string, EmailCategory> = {
   'uber.com': 'transactional',
   'swiggy.in': 'transactional',
   'zomato.com': 'transactional',
+  'netpay.com': 'transactional',
   
   // Jobs
   'indeed.com': 'jobs',
   'naukri.com': 'jobs',
   'linkedin.com/jobs': 'jobs',
   'glassdoor.com': 'jobs',
+  'unstop.com': 'jobs',
+  'internshala.com': 'jobs',
+  'hire.com': 'jobs',
   
   // Updates
   'github.com': 'updates',
   'gitlab.com': 'updates',
   'notifications@': 'updates',
   'noreply@': 'updates',
+  'security-noreply': 'updates',
+  'alerts@': 'updates',
 };
 
 export function classifyEmailCategory(
@@ -95,17 +109,17 @@ export function classifyEmailCategory(
 ): EmailCategory {
   const lowerFrom = from.toLowerCase();
   const lowerSubject = subject.toLowerCase();
-  const lowerBody = body.toLowerCase().substring(0, 500); // First 500 chars
+  const lowerBody = body.toLowerCase().substring(0, 1000); // More context for scoring
   const combinedText = `${lowerSubject} ${lowerBody}`;
 
-  // Check sender patterns first
+  // Priority 1: Check known sender patterns first
   for (const [pattern, category] of Object.entries(SENDER_PATTERNS)) {
     if (lowerFrom.includes(pattern)) {
       return category;
     }
   }
 
-  // Score each category based on keyword matches
+  // Priority 2: Score categories based on keyword weighting
   const scores: Record<EmailCategory, number> = {
     social: 0,
     transactional: 0,
@@ -118,43 +132,35 @@ export function classifyEmailCategory(
   };
 
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    const cat = category as keyof CategoryKeywords;
+    const cat = category as EmailCategory;
     let score = 0;
     
     for (const keyword of keywords) {
-      // Subject matches are worth more
       if (lowerSubject.includes(keyword)) {
-        score += 3;
+        score += 5; // Strong subject match
       }
-      // Body matches
       if (lowerBody.includes(keyword)) {
-        score += 1;
+        score += 2; // Medium body match
       }
     }
-    
     scores[cat] = score;
   }
 
-  // Special rules
+  // Special heuristics
   
-  // If no keywords matched but looks personal (short, personal sender)
-  if (Object.values(scores).every(s => s === 0)) {
-    // Check if from looks like a person (not automated)
-    if (!lowerFrom.includes('noreply') && 
-        !lowerFrom.includes('no-reply') &&
-        !lowerFrom.includes('automated') &&
-        !lowerFrom.includes('notifications')) {
-      return 'personal';
-    }
-    return 'inbox'; // Default
+  // If no category matched well, but it's a person
+  const looksPersonal = !lowerFrom.includes('noreply') && 
+                        !lowerFrom.includes('no-reply') &&
+                        !lowerFrom.includes('automated') &&
+                        !lowerFrom.includes('notifications') &&
+                        !lowerFrom.includes('@google.com') && // Exceptions
+                        !lowerFrom.includes('@microsoft.com');
+
+  if (Object.values(scores).every(s => s < 2)) {
+    return looksPersonal ? 'personal' : 'inbox';
   }
 
-  // If promotional keywords are dominant, classify as promotional
-  if (scores.promotional > 5) {
-    return 'promotional';
-  }
-
-  // Find category with highest score
+  // Find max score
   let maxScore = 0;
   let bestCategory: EmailCategory = 'inbox';
   
@@ -165,15 +171,14 @@ export function classifyEmailCategory(
     }
   }
 
-  // Require minimum score threshold
-  if (maxScore < 2) {
-    return 'inbox';
+  // "Tie breaker" — if promotional and updates are close, promotional often wins
+  if (bestCategory === 'updates' && scores.promotional >= scores.updates - 2) {
+    return 'promotional';
   }
 
   return bestCategory;
 }
 
-// Helper to get category display name
 export function getCategoryDisplayName(category: EmailCategory): string {
   const names: Record<EmailCategory, string> = {
     social: 'Social',
@@ -181,7 +186,7 @@ export function getCategoryDisplayName(category: EmailCategory): string {
     jobs: 'Jobs',
     events: 'Events',
     personal: 'Personal',
-    updates: 'Updates & Notifications',
+    updates: 'Updates',
     promotional: 'Promotional',
     inbox: 'Inbox'
   };

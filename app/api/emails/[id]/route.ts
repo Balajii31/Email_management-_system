@@ -14,7 +14,7 @@ export async function GET(
 
     try {
         const email = await prisma.email.findFirst({
-            where: { id, userId: auth.mongoUser.id, deletedAt: null },
+            where: { id, userId: auth.mongoUser.id },
             include: {
                 attachments: true,
                 summaries: true,
@@ -54,7 +54,7 @@ export async function PATCH(
         const data = updateEmailSchema.parse(body);
 
         const email = await prisma.email.findFirst({
-            where: { id, userId: auth.mongoUser.id, deletedAt: null }
+            where: { id, userId: auth.mongoUser.id }
         });
 
         if (!email) return errorResponse('Email not found', 404);

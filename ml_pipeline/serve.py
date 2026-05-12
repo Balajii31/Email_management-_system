@@ -48,14 +48,14 @@ def load_model():
     try:
         from inference import EmailClassifier
         classifier = EmailClassifier()
-        print("✅ EmailClassifier loaded successfully")
+        print("[OK] EmailClassifier loaded successfully")
     except FileNotFoundError:
-        print("⚠️  WARNING: No trained model found at ml_pipeline/saved_models/best_model.pt")
+        print("[WARNING] No trained model found at ml_pipeline/saved_models/best_model.pt")
         print("   Please train the model first using the Colab notebook,")
         print("   then place best_model.pt and tokenizer/ in ml_pipeline/saved_models/")
         classifier = None
     except Exception as e:
-        print(f"⚠️  WARNING: Failed to load model: {e}")
+        print(f"[WARNING] Failed to load model: {e}")
         classifier = None
 
 @app.on_event("startup")

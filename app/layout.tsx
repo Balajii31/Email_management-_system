@@ -11,7 +11,7 @@ const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
-  title: 'AI Email Manager',
+  title: 'Velocity Mail',
   description: 'Smart email management with AI summarization and translation',
 }
 

@@ -24,3 +24,9 @@ export const userPreferencesSchema = z.object({
     notificationsEnabled: z.boolean().optional(),
     theme: z.enum(['light', 'dark', 'system']).optional(),
 });
+
+export const chatRequestSchema = z.object({
+    message: z.string().min(1).max(2000),
+    sessionId: z.string().optional(),
+    selectedEmailId: z.string().optional(),
+});

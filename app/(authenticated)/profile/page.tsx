@@ -2,18 +2,18 @@
 
 import { useAuth } from '@/components/providers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Mail, Calendar, Shield, Link as LinkIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
   if (!user) {
     return (
@@ -23,10 +23,20 @@ export default function ProfilePage() {
     );
   }
 
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  const avatarUrl = useMemo(() => {
+    const metadata = user?.user_metadata as Record<string, any> | undefined;
+    return metadata?.avatar_url || metadata?.picture || '';
+  }, [user?.user_metadata]);
+
+  const avatarInitial = useMemo(() => {
+    const metadata = user?.user_metadata as Record<string, any> | undefined;
+    const name = String(metadata?.full_name || metadata?.name || user?.email || '').trim();
+    return name ? name.charAt(0).toUpperCase() : 'U';
+  }, [user?.user_metadata, user?.email]);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [avatarUrl]);
 
   const formatDate = (date?: string) => {
     if (!date) return 'N/A';
@@ -52,12 +62,21 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name || 'User'} />
-              <AvatarFallback className="text-2xl">
-                {getInitials(user.user_metadata?.full_name)}
-              </AvatarFallback>
-            </Avatar>
+            <div className="h-24 w-24 rounded-full border border-border bg-primary/10 text-primary overflow-hidden">
+              {avatarUrl && !avatarLoadFailed ? (
+                <img
+                  src={avatarUrl}
+                  alt={user.user_metadata?.full_name || 'User'}
+                  className="h-full w-full rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarLoadFailed(true)}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-primary text-primary-foreground text-2xl font-semibold">
+                  {avatarInitial}
+                </div>
+              )}
+            </div>
             <div className="flex-1">
               <h2 className="text-2xl font-semibold">{user.user_metadata?.full_name || 'User'}</h2>
               <p className="text-muted-foreground">{user.email}</p>

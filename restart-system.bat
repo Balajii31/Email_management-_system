@@ -1,7 +1,7 @@
 @echo off
 echo.
 echo ====================================================================
-echo   Restarting Email Spam Detection System
+echo   Restarting Velocity Mail
 echo ====================================================================
 echo.
 

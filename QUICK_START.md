@@ -1,4 +1,4 @@
-# 🚀 Quick Start Guide - Email Spam Detection System
+# 🚀 Quick Start Guide - Velocity Mail
 
 ## ⚡ Fast Setup (5 minutes)
 

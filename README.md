@@ -1,4 +1,4 @@
-# AI-Powered Email Management System
+# Velocity Mail - AI Email Management System
 
 A high-performance, AI-driven email client built with Next.js, featuring automated summarization, translation, and priority classification.
 
@@ -7,6 +7,7 @@ A high-performance, AI-driven email client built with Next.js, featuring automat
 - **Virtualized Inbox**: Smooth scrolling through thousands of emails using `@tanstack/react-virtual`.
 - **AI Summarization**: Get concise summaries of long emails using Google Gemini.
 - **Tamil Translation**: One-click translation of emails into Tamil.
+- **Inbox Chatbot**: Ask natural-language questions about your inbox and get cited answers.
 - **Smart Classification**: Automatic spam detection and priority categorization.
 - **Gmail Integration**: Secure connection and synchronization with Gmail.
 - **Secure by Default**: AES-256-GCM token encryption, CSP headers, and rate limiting.

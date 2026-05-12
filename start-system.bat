@@ -1,7 +1,7 @@
 @echo off
 echo =====================================================
-echo   STARTING EMAIL SPAM DETECTION SYSTEM
-echo   Now with MongoDB Database!
+echo   STARTING VELOCITY MAIL
+echo   Powered by BERT AI
 echo =====================================================
 echo.
 echo Starting services...

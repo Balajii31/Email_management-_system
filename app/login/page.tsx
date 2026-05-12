@@ -35,7 +35,7 @@ export default function LoginPage() {
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
                     <CardDescription>
-                        Login to your email management system
+                        Login to Velocity Mail
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex justify-center py-8">

@@ -190,19 +190,19 @@ export async function classifyEmailWithBert(
         };
     }
 
-    // Fallback to simple classifiers if BERT fails
+    // Fallback to advanced multi-layer classifier if BERT fails
     if (fallbackToSimple) {
         const { detectSpam, extractFeatures } = await import('./spam-detector');
         const { classifyPriority } = await import('./priority-classifier');
 
         const features = extractFeatures('', subject, body);
-        const spamResult = detectSpam(features);
+        const { isSpam, confidence } = detectSpam(features);
         const priorityResult = classifyPriority('', subject, body);
 
         return {
-            isSpam: spamResult.isSpam,
+            isSpam,
             priority: priorityResult.priority.toLowerCase() as 'high' | 'medium' | 'low',
-            confidence: spamResult.confidence,
+            confidence,
             usedBert: false,
         };
     }
